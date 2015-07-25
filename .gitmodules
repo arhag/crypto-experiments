@@ -1,0 +1,3 @@
+[submodule "vendor/secp256k1-zkp"]
+	path = vendor/secp256k1-zkp
+	url = https://github.com/ElementsProject/secp256k1-zkp.git
