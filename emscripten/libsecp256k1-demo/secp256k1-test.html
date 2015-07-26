@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Demonstration of libsecp256k1 compiled with Emscripten</title>
+    <script type="text/javascript" src="secp256k1.js"></script>
+    <script src="//crypto-js.googlecode.com/svn/tags/3.1.2/build/rollups/sha256.js"></script>
+    <script type="text/javascript" src="wordarrayconv.js"></script>
+    <style type="text/css">
+        form.container>div         { display: table;      }
+        form.container>div>p       { display: table-row;  }
+        form.container>div>p>label { display: table-cell; padding-right: 0.5em; }
+        form.container>div>p>input { display: table-cell; width: 40em; }
+    </style>
+  </head>
+  <body>
+    <form id="crypto" class="container" action="#">
+        <div>
+        <p>
+            <label for="msg">Message:</label>
+            <input type="text" id="msg" placeholder="Type in message to sign and verify" />
+        </p>
+        <p>
+            <label for="sec">Secret:</label>
+            <input type="text" id="sec" placeholder="Secret passphrase from which secret key is derived" />
+        </p>
+        </div>
+        <span id="wait">Waiting for libsecp256k1 to load...</span>
+        <input type="submit" id="go" value="Sign and Verify" style="display: none" />
+    </form>
+    <pre id="out"></pre>
+
+    <script type="text/javascript">
+    function init()
+    {
+        document.getElementById("wait").style.display = "none";
+        document.getElementById("go").style.display = "block";
+        document.getElementById("crypto").addEventListener("submit", go);
+        console.log('Loaded');
+    }
+
+    function go()
+    {
+        var msg_str = document.getElementById("msg").value;
+        var sec_str = document.getElementById("sec").value;
+        console.log('Go with msg="'+msg_str+'" and sec="'+sec_str+'"');
+
+        var out = document.getElementById("out");
+        out.innerText = "";
+        function log(str) {
+            console.log(str);
+            out.innerText += '\n' + str.toString();
+        }
+
+        if (msg_str == "" || sec_str == "")
+        {
+            log("Error: You must fill in both fields!");
+            return;
+        }
+
+        var msg = CryptoJS.enc.u8array.stringify(CryptoJS.SHA256(msg_str)); 
+        var seckey = CryptoJS.enc.u8array.stringify(CryptoJS.SHA256(sec_str));
+        var pubkey, recovered_pubkey, sig, recid;
+        Promise.resolve()
+        .then(function(ret) {
+            log("Generated seckey from string: " + sec_str);
+            return secp256k1.api.point(seckey);
+        }).then(function(ret) {
+            pubkey = ret;
+            log("Public key is: " + CryptoJS.enc.u8array.parse(pubkey).toString());
+            return secp256k1.api.ecdsa_sign(msg, seckey);
+        }).then(function(ret) {
+            sig = ret.sig;
+            recid = ret.recid;
+            log("Signature is: " + CryptoJS.enc.u8array.parse(sig).toString());
+            log("recid = " + recid);
+            return secp256k1.api.ecdsa_recover(msg, sig, recid);
+        }).then(function(ret) {
+            recovered_pubkey = ret;
+            log("Recovered public key is: " + CryptoJS.enc.u8array.parse(recovered_pubkey).toString());
+            for (var i = 0; i < pubkey.length; ++i)
+            {
+                if (recovered_pubkey[i] != pubkey[i])
+                {
+                    log("Signature is incorrect.");
+                    return;
+                }
+            }
+            log("Signature is correct.");
+        }).catch(function(error) {
+            log("Error occured: ");
+            log(error);
+        });
+    }
+    
+    secp256k1.init(init);
+    </script>
+</body>
+</html>

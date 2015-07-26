@@ -1,0 +1,3 @@
+libsecp256k1.js-build/**
+!libsecp256k1.js-build/configure
+
