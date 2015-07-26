@@ -32,6 +32,11 @@
     <pre id="out"></pre>
 
     <script type="text/javascript">
+    function do_nothing(e)
+    {
+        e.preventDefault();
+    }
+
     function init()
     {
         document.getElementById("wait").style.display = "none";
@@ -40,8 +45,10 @@
         console.log('Loaded');
     }
 
-    function go()
+    function go(e)
     {
+        e.preventDefault();
+
         var msg_str = document.getElementById("msg").value;
         var sec_str = document.getElementById("sec").value;
         console.log('Go with msg="'+msg_str+'" and sec="'+sec_str+'"');
@@ -93,7 +100,8 @@
             log(error);
         });
     }
-    
+   
+    document.getElementById("crypto").addEventListener("submit", do_nothing); 
     secp256k1.init(init);
     </script>
 </body>
