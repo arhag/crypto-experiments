@@ -68,44 +68,35 @@
         }
 
         var state = {};
-        state.msg = CryptoJS.enc.u8array.stringify(CryptoJS.SHA256(msg_str)); 
-        state.seckey = CryptoJS.enc.u8array.stringify(CryptoJS.SHA256(sec_str));
+        state.message = CryptoJS.enc.u8array.stringify(CryptoJS.SHA256(msg_str)); 
+        state.secret_key = CryptoJS.enc.u8array.stringify(CryptoJS.SHA256(sec_str));
         Promise.resolve()
         .then(function(ret) {
             log("Generated seckey from string: " + sec_str);
-            var args = {seckey: state.seckey};
-            return secp256k1.api.point(args).then(function(ret) {
-                        // Pass updates to args up to state (needed for all TypedArrays)
-                        state.seckey = args.seckey;
-                        return ret;
-            });
+            // Second argument to all API functions maps the expected argument name to the alias name
+            // under which the expected argument can be found in object passed as the first argument.
+            return secp256k1.api.point(state, {seckey: 'secret_key'});
         }).then(function(ret) {
-            state.pubkey = ret;
-            log("Public key is: " + CryptoJS.enc.u8array.parse(state.pubkey).toString());
-            var args = {msg: state.msg, seckey: state.seckey};
-            return secp256k1.api.ecdsa_sign(args).then(function(ret) {
-                        state.msg = args.msg;
-                        state.seckey = args.seckey;
-                        return ret;
-            });
+            state.public_key = ret;
+            log("Public key is: " + CryptoJS.enc.u8array.parse(state.public_key).toString());
+            // The map can also be an Array. In which case, aliases for all expected arguments must be provided 
+            // in the order defined by the API function.
+            return secp256k1.api.ecdsa_sign(state, ['message', 'secret_key']);
         }).then(function(ret) {
             state.sig = ret.sig;
             state.recid = ret.recid;
             log("Signature is: " + CryptoJS.enc.u8array.parse(state.sig).toString());
             log("recid = " + state.recid);
-            var args = {msg: state.msg, sig: state.sig, recid: state.recid};
-            return secp256k1.api.ecdsa_recover(args).then(function(ret) {
-                        state.msg = args.msg;
-                        state.sig = args.sig;
-                        // No need to do this for state.recid since it is a Number, not a TypedArray, and so it won't be neutered.
-                        return ret;
-            });
+            // If an expected argument name maps to the same name as an alias, there is no need to include it in the map.
+            // For example, in this case sig and recid are stored under the same name in state as what the function expects,
+            // and therefore the map argument only maps 'msg' to 'message'.
+            return secp256k1.api.ecdsa_recover(state, {msg: 'message'});
         }).then(function(ret) {
             state.recovered_pubkey = ret;
             log("Recovered public key is: " + CryptoJS.enc.u8array.parse(state.recovered_pubkey).toString());
-            for (var i = 0; i < state.pubkey.length; ++i)
+            for (var i = 0; i < state.public_key.length; ++i)
             {
-                if (state.recovered_pubkey[i] !== state.pubkey[i])
+                if (state.recovered_pubkey[i] !== state.public_key[i])
                 {
                     log("Signature is incorrect.");
                     return;
