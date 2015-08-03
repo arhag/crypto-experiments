@@ -80,20 +80,50 @@ var secp256k1 = {
                                 {
                                     secp256k1.args_spec[fname] = data['inner_api'][fname];
                                     secp256k1.api[fname] = (function(fname, args_spec) {
-                                        return function(proc_args) {
-                                            if (secp256k1.worker === null)
+                                        return function() {
+                                            var map_mode = 0;
+                                            var proc_args, map;
+                                            try
                                             {
-                                                throw {'error_type': 'api', 'error_msg': "secp256k1 has not yet been initialized"};
+                                                if (secp256k1.worker === null)
+                                                {
+                                                    throw "secp256k1 has not yet been initialized";
+                                                }
+                                                else if (secp256k1.in_progress !== null)
+                                                {
+                                                    throw "Another operation is already in progress";
+                                                }
+                                                if (arguments.length === 0)
+                                                {
+                                                    throw "No arguments provided";
+                                                }
+                                                proc_args = arguments[0];
+                                                if (arguments.length >= 2)
+                                                {
+                                                    map = arguments[1];
+                                                    if (Object.prototype.toString.call(map).slice(8, -1) === 'Array')
+                                                    {
+                                                        map_mode = 2;
+                                                        if (!(map.length >= args_spec.length))
+                                                        {
+                                                            throw "Argument map array does not map all arguments";
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        map_mode = 1;
+                                                    }
+                                                }
                                             }
-                                            else if (secp256k1.in_progress !== null)
+                                            catch(err)
                                             {
-                                                throw {'error_type': 'api', 'error_msg': "Another operation is already in progress"};
+                                                throw {'error_type': 'api', 'error_msg': err};                    
                                             }
                                             try
                                             {
                                                 secp256k1.in_progress = fname;
                                                 var args = {};
-                                                var update = {};
+                                                var update = {'map': {}, 'status': {}};
                                                 var buffers = [];
                                                 
                                                 var get_type = function(o) {
@@ -142,11 +172,24 @@ var secp256k1 = {
                                                 {
                                                     var arg_spec = args_spec[i];
                                                     var arg_name = arg_spec['name'];
-                                                    if (typeof proc_args[arg_name] === undefined)
+                                                    var mapped_arg_name = arg_name;
+                                                    switch(map_mode)
+                                                    {
+                                                        case 1:
+                                                            if (map.hasOwnProperty(arg_name))
+                                                            {
+                                                                mapped_arg_name = map[arg_name];
+                                                            }
+                                                            break;
+                                                        case 2:
+                                                            mapped_arg_name = map[i];
+                                                            break;
+                                                    }
+                                                    if (typeof proc_args[mapped_arg_name] === 'undefined')
                                                     {
                                                         throw "Argument '" + arg_name + "' not provided in call to function '" + fname + "'";
                                                     }
-                                                    var type = get_type(proc_args[arg_name]);
+                                                    var type = get_type(proc_args[mapped_arg_name]);
                                                     var is_valid = false;
                                                     var is_typed_array = false;
                                                     var update_status = 0;
@@ -163,7 +206,7 @@ var secp256k1 = {
                                                                 }
                                                             }
                                                             else if (arg_spec['out'] && type['actual'] === 'Array'
-                                                                     && proc_args[arg_name].length === 1
+                                                                     && proc_args[mapped_arg_name].length === 1
                                                                      && (type['typed_array_inner'] === 'Number' 
                                                                          || type['typed_array_inner'] === 'Null'))
                                                             {
@@ -192,16 +235,17 @@ var secp256k1 = {
                                                     }
                                                     if (update_status === 1)
                                                     {
-                                                        args[arg_name] = [proc_args[arg_name]];
+                                                        args[arg_name] = [proc_args[mapped_arg_name]];
                                                     }
                                                     else
                                                     {
-                                                        args[arg_name] = proc_args[arg_name];
+                                                        args[arg_name] = proc_args[mapped_arg_name];
                                                     }
-                                                    update[arg_name] = update_status;
+                                                    update['status'][arg_name] = update_status;
+                                                    update['map'][arg_name]    = mapped_arg_name;
                                                     if (is_typed_array)
                                                     {
-                                                        buffers.push(proc_args[arg_name]['buffer']);
+                                                        buffers.push(proc_args[mapped_arg_name]['buffer']);
                                                     }
                                                 }
                                                 
@@ -245,13 +289,13 @@ var secp256k1 = {
                             {
                                 var arg_spec = args_spec[i];
                                 var arg_name = arg_spec['name'];
-                                switch(update[arg_name])
+                                switch(update['status'][arg_name])
                                 {
                                     case 2: // Update single element in Array
-                                        args[arg_name][0] = data['update_args'][arg_name][0];
+                                        args[update['map'][arg_name]][0] = data['update_args'][arg_name][0];
                                         break;
                                     case 3: // Update TypedArray
-                                        args[arg_name] = data['update_args'][arg_name];
+                                        args[update['map'][arg_name]] = data['update_args'][arg_name];
                                         break;
                                 }
                             }
