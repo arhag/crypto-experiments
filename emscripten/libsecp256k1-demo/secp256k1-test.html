@@ -55,9 +55,25 @@
 
         var out = document.getElementById("out");
         out.innerText = "";
-        function log(str) {
-            console.log(str);
-            out.innerText += '\n' + str.toString();
+        function log(s) {
+            console.log(s);
+            var str;
+            if (typeof s === 'object')
+            {
+                if (s.hasOwnProperty('message'))
+                {
+                    str = s['message'];
+                }
+                else
+                {
+                    str = JSON.stringify(s);
+                }
+            }
+            else
+            {
+                str = s.toString();
+            }
+            out.innerText += '\n' + str;
         }
 
         if (msg_str == "" || sec_str == "")
@@ -66,29 +82,45 @@
             return;
         }
 
-        var msg = CryptoJS.enc.u8array.stringify(CryptoJS.SHA256(msg_str)); 
-        var seckey = CryptoJS.enc.u8array.stringify(CryptoJS.SHA256(sec_str));
-        var pubkey, recovered_pubkey, sig, recid;
+        var state = {};
+        state.msg = CryptoJS.enc.u8array.stringify(CryptoJS.SHA256(msg_str)); 
+        state.seckey = CryptoJS.enc.u8array.stringify(CryptoJS.SHA256(sec_str));
         Promise.resolve()
         .then(function(ret) {
             log("Generated seckey from string: " + sec_str);
-            return secp256k1.api.point(seckey);
+            var args = {seckey: state.seckey};
+            return secp256k1.api.point(args).then(function(ret) {
+                        // Pass updates to args up to state (needed for all TypedArrays)
+                        state.seckey = args.seckey;
+                        return ret;
+            });
         }).then(function(ret) {
-            pubkey = ret;
-            log("Public key is: " + CryptoJS.enc.u8array.parse(pubkey).toString());
-            return secp256k1.api.ecdsa_sign(msg, seckey);
+            state.pubkey = ret;
+            log("Public key is: " + CryptoJS.enc.u8array.parse(state.pubkey).toString());
+            var args = {msg: state.msg, seckey: state.seckey};
+            return secp256k1.api.ecdsa_sign(args).then(function(ret) {
+                        state.msg = args.msg;
+                        state.seckey = args.seckey;
+                        return ret;
+            });
         }).then(function(ret) {
-            sig = ret.sig;
-            recid = ret.recid;
-            log("Signature is: " + CryptoJS.enc.u8array.parse(sig).toString());
-            log("recid = " + recid);
-            return secp256k1.api.ecdsa_recover(msg, sig, recid);
+            state.sig = ret.sig;
+            state.recid = ret.recid;
+            log("Signature is: " + CryptoJS.enc.u8array.parse(state.sig).toString());
+            log("recid = " + state.recid);
+            var args = {msg: state.msg, sig: state.sig, recid: state.recid};
+            return secp256k1.api.ecdsa_recover(args).then(function(ret) {
+                        state.msg = args.msg;
+                        state.sig = args.sig;
+                        // No need to do this for state.recid since it is a Number, not a TypedArray, and so it won't be neutered.
+                        return ret;
+            });
         }).then(function(ret) {
-            recovered_pubkey = ret;
-            log("Recovered public key is: " + CryptoJS.enc.u8array.parse(recovered_pubkey).toString());
-            for (var i = 0; i < pubkey.length; ++i)
+            state.recovered_pubkey = ret;
+            log("Recovered public key is: " + CryptoJS.enc.u8array.parse(state.recovered_pubkey).toString());
+            for (var i = 0; i < state.pubkey.length; ++i)
             {
-                if (recovered_pubkey[i] != pubkey[i])
+                if (state.recovered_pubkey[i] != state.pubkey[i])
                 {
                     log("Signature is incorrect.");
                     return;
@@ -102,7 +134,7 @@
     }
    
     document.getElementById("crypto").addEventListener("submit", do_nothing); 
-    secp256k1.init(init);
+    secp256k1.init().then(init);
     </script>
 </body>
 </html>
