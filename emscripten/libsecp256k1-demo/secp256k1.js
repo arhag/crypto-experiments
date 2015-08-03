@@ -96,7 +96,6 @@ var secp256k1 = {
                                                 var update = {};
                                                 var buffers = [];
                                                 
-                                                // Validate args against args_spec
                                                 var get_type = function(o) {
                                                     var actual_type = Object.prototype.toString.call(o).slice(8, -1);
                                                     var type = null;

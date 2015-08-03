@@ -32,23 +32,8 @@
     <pre id="out"></pre>
 
     <script type="text/javascript">
-    function do_nothing(e)
-    {
-        e.preventDefault();
-    }
-
-    function init()
-    {
-        document.getElementById("wait").style.display = "none";
-        document.getElementById("go").style.display = "block";
-        document.getElementById("crypto").addEventListener("submit", go);
-        console.log('Loaded');
-    }
-
     function go(e)
     {
-        e.preventDefault();
-
         var msg_str = document.getElementById("msg").value;
         var sec_str = document.getElementById("sec").value;
         console.log('Go with msg="'+msg_str+'" and sec="'+sec_str+'"');
@@ -120,7 +105,7 @@
             log("Recovered public key is: " + CryptoJS.enc.u8array.parse(state.recovered_pubkey).toString());
             for (var i = 0; i < state.pubkey.length; ++i)
             {
-                if (state.recovered_pubkey[i] != state.pubkey[i])
+                if (state.recovered_pubkey[i] !== state.pubkey[i])
                 {
                     log("Signature is incorrect.");
                     return;
@@ -133,8 +118,13 @@
         });
     }
    
-    document.getElementById("crypto").addEventListener("submit", do_nothing); 
-    secp256k1.init().then(init);
+    document.getElementById("crypto").addEventListener("submit", function(e) { e.preventDefault(); }); 
+    secp256k1.init().then(function() {
+        document.getElementById("wait").style.display = "none";
+        document.getElementById("go").style.display = "block";
+        document.getElementById("crypto").addEventListener("submit", go);
+        console.log('Loaded');
+    });
     </script>
 </body>
 </html>
